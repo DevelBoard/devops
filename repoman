@@ -1,0 +1,200 @@
+#!/usr/bin/env python
+#
+# repoman - OPKG Repository Management Tool
+# Copyright (C) 2015  Develer S.r.l.
+#
+# Author: Lorenzo Villani <lvillani@develer.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+from __future__ import print_function
+
+import argparse
+import gzip
+import md5
+import os
+import os.path
+import resource
+import shutil
+import subprocess
+import sys
+
+DEVELBOARD_VARIANTS = ["blue"]
+DEVELBOARD_VERSION = "1.8.1"
+IGNORED_ARCHITECTURES = ["x86_64-nativesdk"]
+
+
+def main():
+    args = parse_args()
+    dest = get_dest_root(args.destination, args.develboard_variant, args.develboard_version)
+    opkg = get_opkg_path(args.source)
+
+    sanity_check(args.source, opkg)
+    prep_destination(dest)
+
+    if args.accept_from_file:
+        accept = lines_from_file(args.accept_from_file)
+    else:
+        accept = args.accept
+
+    conflicts = process_source(args.source, dest, accept)
+    if conflicts:
+        if args.write_conflicts:
+            open(args.write_conflicts, "w").writelines(c[0] + os.linesep for c in conflicts)
+        else:
+            display_conflicts(conflicts)
+
+        sys.exit(1)
+
+    build_indexes(dest, opkg)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-V", "--develboard-version", default=DEVELBOARD_VERSION)
+    parser.add_argument("-a", "--accept", type=list, default=[])
+    parser.add_argument("-f", "--accept-from-file", type=str)
+    parser.add_argument("-k", "--develboard-variant", choices=DEVELBOARD_VARIANTS, default="blue")
+    parser.add_argument("-w", "--write-conflicts", type=str)
+
+    parser.add_argument("source")
+    parser.add_argument("destination")
+
+    return parser.parse_args()
+
+
+def get_dest_root(root, variant, version):
+    return os.path.join(root, variant, version)
+
+
+def get_opkg_path(source):
+    return os.path.abspath(os.path.join(source, "..", "..", "sysroots", "x86_64-linux", "usr", "bin", "opkg-make-index"))
+
+
+def sanity_check(source, opkg):
+    if not os.path.isfile(os.path.join(source, "Packages")):
+        die("Source directory does not appear to be valid")
+
+    if not os.path.isfile(opkg) and not os.access(opkg, os.X_OK):
+        die("Cannot find opkg-make-index executable:" + os.linesep + opkg)
+
+
+def die(*args):
+    print(*args)
+    sys.exit(1)
+
+
+def prep_destination(dest):
+    if not os.path.isdir(dest):
+        os.makedirs(dest)
+
+
+def lines_from_file(path):
+    with open(path, "r") as f:
+        return [l.strip() for l in f if l.strip()]
+
+
+def process_source(root, dest, accept):
+    dirs = onlydirs(root)
+    to_process = [d for d in dirs if not os.path.basename(d) in IGNORED_ARCHITECTURES]
+    conflicts = []
+
+    for subtree in to_process:
+        conflicts.extend(process_architecture_subtree(root, subtree, dest, accept))
+
+    return conflicts
+
+
+def onlydirs(path):
+    entries = os.listdir(path)
+    paths = [os.path.join(path, p) for p in entries]
+
+    return [d for d in paths if os.path.isdir(d)]
+
+
+def process_architecture_subtree(root, subtree, dest, accept):
+    conflicts = []
+
+    for dirpath, dirnames, filenames in os.walk(subtree):
+        for filename in [f for f in filenames if f.endswith(".ipk")]:
+            abspath = os.path.join(dirpath, filename)
+            relpath = os.path.relpath(abspath, root)
+            destdir = os.path.join(dest, os.path.dirname(relpath))
+            destpath = os.path.join(dest, relpath)
+
+            if not os.path.isdir(destdir):
+                os.makedirs(destdir)
+
+            if not os.path.isfile(destpath):
+                shutil.copyfile(abspath, destpath)
+            elif not are_identical(abspath, destpath):
+                handle_conflict(abspath, destpath, accept, conflicts)
+
+    return conflicts
+
+
+def are_identical(source_path, dest_path):
+    return md5_of(source_path) == md5_of(dest_path)
+
+
+def md5_of(path):
+    m = md5.new()
+
+    with open(path, "rb") as f:
+        block = read_block(f)
+
+        while block:
+            m.update(block)
+
+            block = read_block(f)
+
+    return m.digest()
+
+
+def read_block(f):
+    return f.read(resource.getpagesize())
+
+
+def handle_conflict(source_path, dest_path, accepted, conflicts):
+    if source_path in accepted:
+        shutil.copyfile(source_path, dest_path)
+    else:
+        conflicts.append((source_path, dest_path))
+
+
+def display_conflicts(conflicts):
+    print("The following packages have the same name but differ between the source")
+    print("and the destination:")
+
+    for conflict in conflicts:
+        print(conflict[0])
+
+
+def build_indexes(dest, opkg):
+    for arch in onlydirs(dest):
+        packages = os.path.join(arch, "Packages")
+        packages_gz = os.path.join(arch, "Packages.gz")
+
+        subprocess.check_call([opkg, "-p", packages, dest])
+        gzip_file(packages, packages_gz)
+
+
+def gzip_file(src, dst):
+    with open(src, "rb") as fin, gzip.open(dst, "wb") as fout:
+        shutil.copyfileobj(fin, fout)
+
+
+if __name__ == "__main__":
+    main()
