@@ -208,7 +208,7 @@ def build_indexes(dest, opkg):
         packages = os.path.join(arch, "Packages")
         packages_gz = os.path.join(arch, "Packages.gz")
 
-        subprocess.check_call([opkg, "-p", packages, dest])
+        subprocess.check_call([opkg, "-p", packages, arch])
         gzip_file(packages, packages_gz)
 
 
