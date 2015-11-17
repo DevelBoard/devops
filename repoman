@@ -41,14 +41,17 @@ def main():
     dest = get_dest_root(args.destination, distro_codename, distro_version)
     opkg = get_opkg_path(args.source)
 
+    # Prep
     sanity_check(args.source, opkg)
     prep_destination(dest)
 
+    # Load packages to accept (i.e.: copy from source to destination) in case of conflicts.
     if args.accept_from_file:
         accept = lines_from_file(args.accept_from_file)
     else:
         accept = args.accept
 
+    # Process the source directory and handle conflicts.
     conflicts = process_source(args.source, dest, accept)
     if conflicts:
         if args.write_conflicts:
@@ -58,8 +61,10 @@ def main():
 
         sys.exit(1)
 
+    # Rebuild Packages + Packages.gz + Packages.stamp
     build_indexes(dest, opkg)
 
+    # Sync to S3
     if args.sync:
         sync(args.destination)
 
