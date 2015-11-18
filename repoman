@@ -46,20 +46,19 @@ def main():
     prep_destination(dest)
 
     # Load packages to accept (i.e.: copy from source to destination) in case of conflicts.
-    if args.accept_from_file:
-        accept = lines_from_file(args.accept_from_file)
-    else:
-        accept = args.accept
+    accept = [] if not args.accept else lines_from_file(args.accept)
+
+    # Ignoring a package conflict works by copying the destination package to the source so that
+    # they become identical.
+    process_ignored(args.source, dest, [] if not args.ignore else lines_from_file(args.ignore))
 
     # Process the source directory and handle conflicts.
     conflicts = process_source(args.source, dest, accept)
     if conflicts:
         if args.write_conflicts:
-            open(args.write_conflicts, "w").writelines(c[0] + os.linesep for c in conflicts)
+            open(args.write_conflicts, "w").writelines(c + os.linesep for c in conflicts)
         else:
             display_conflicts(conflicts)
-
-        sys.exit(1)
 
     # Rebuild Packages + Packages.gz + Packages.stamp
     build_indexes(dest, opkg)
@@ -71,8 +70,8 @@ def main():
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--accept", type=list, default=[])
-    parser.add_argument("-A", "--accept-from-file", type=str)
+    parser.add_argument("-a", "--accept", type=str)
+    parser.add_argument("-i", "--ignore", type=str)
     parser.add_argument("-s", "--sync", action="store_true")
     parser.add_argument("-w", "--write-conflicts", type=str)
 
@@ -130,6 +129,11 @@ def prep_destination(dest):
 def lines_from_file(path):
     with open(path, "r") as f:
         return [l.strip() for l in f if l.strip()]
+
+
+def process_ignored(source, dest, ignore):
+    for p in ignore:
+        shutil.copyfile(os.path.join(dest, p), os.path.join(source, p))
 
 
 def process_source(root, dest, accept):
@@ -194,10 +198,12 @@ def read_block(f):
 
 
 def handle_conflict(source_path, dest_path, accepted, conflicts):
-    if source_path in accepted:
+    coord = os.sep.join(source_path.split(os.sep)[-2:])  # <architecture>/<package name>
+
+    if coord in accepted:
         shutil.copyfile(source_path, dest_path)
     else:
-        conflicts.append((source_path, dest_path))
+        conflicts.append(coord)
 
 
 def display_conflicts(conflicts):
@@ -205,7 +211,7 @@ def display_conflicts(conflicts):
     print("and the destination:")
 
     for conflict in conflicts:
-        print(conflict[0])
+        print(conflict)
 
 
 def build_indexes(dest, opkg):
