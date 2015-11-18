@@ -60,6 +60,8 @@ def main():
         else:
             display_conflicts(conflicts)
 
+        sys.exit(1)
+
     # Rebuild Packages + Packages.gz + Packages.stamp
     build_indexes(dest, opkg)
 
