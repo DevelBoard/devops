@@ -19,6 +19,58 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+
+# Motivation and Purpose
+# ======================
+#
+# This script acts as a buffer between IPK packages produced by Yocto and the directory holding
+# the final repository available to end-users.
+#
+# A script like this one is needed because, sometimes, Yocto rebuilds all dependent packages once
+# a dependency changes, even when no significant change happen with the dependency's code
+# itself. The script detects packages with the same name but different check-sums between the
+# source and destination directory and allows the operator to decide how to handle conflicts
+# (which in most cases boils down to ignoring the conflict).
+#
+#
+#
+# Glossary
+# ========
+#
+# * Source directory: a directory full of .ipk files as produced by Yocto. Generally
+#   `tmp/deploy/ipk` relative to the build directory.
+# * Destination directory: a directory holding the final repository that will be served
+#   to end-users.
+# * Conflict: a package whose name and architecture is the same between the source and
+#   destination directories, but have differing check-sums.
+#   A conflicting package can be:
+#   - Accepted: it will be copied from source to destination (this is frown upon,
+#     you should bump the release of a particular package instead).
+#   - Ignored: the .ipk from the destination directory will be copied back to the
+#     source so that it doesn't generate a new conflict until Yocto decides to build
+#     it again.
+#
+#
+#
+# How to Use
+# ==========
+#
+# In its basic form this program takes two arguments:
+#
+# 1. The source directory;
+# 2. The destination directory;
+#
+# In case there are conflicts, they are shown on the command line and the script exits with a
+# non-zero status code. Said list can be also written to disk by passing the "-w" switch followed
+# by the file name to write to.
+#
+# The conflict file contains one entry per line in this format:
+# <architecture>/<package name>.ipk
+#
+# Given a list of conflicts you can choose to either accept or ignore them. Refer to the glossary
+# (above) to learn the meaning of "accepting" or "ignoring" a conflict.
+
+
 from __future__ import print_function
 
 import argparse
