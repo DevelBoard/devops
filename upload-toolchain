@@ -3,6 +3,8 @@
 set -e
 set -u
 
+BASEURL="https://toolchain.develboard.com"
+
 ls develboard-glibc-x86_64*-toolchain*.sh 1>/dev/null 2>&1 || {
     echo "Cannot find toolchain installer files. Aborting"
     exit 1
@@ -12,5 +14,33 @@ ls develboard-glibc-x86_64*-toolchain*.manifest 1>/dev/null 2>&1 || {
     echo "Cannot find toolchain manifest files. Aborting"
     exit 1
 }
+
+# Generate an HTML page with a list of SDKs and links to download them
+#
+# WARNING: The list will be overwritten with whatever is in the current directory
+# when you launch the script.
+
+cat >index.html <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DevelBoard Toolchain</title>
+</head>
+<body>
+    <h1>DevelBoard Blue Toolchain</h1>
+    <ul>
+EOF
+
+for f in *.sh; do
+    bf=$(basename "${f}")
+
+    echo "        <li><a href=\"${BASEURL}/${bf}\">${bf}</a></li>" >>index.html
+done
+
+cat >>index.html <<EOF
+    </ul>
+</body>
+</html>
+EOF
 
 aws s3 sync --profile develboard-toolchain --region eu-west-1 ./ s3://toolchain.develboard.com/
