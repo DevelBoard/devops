@@ -33,8 +33,18 @@ EOF
 
 for f in *.sh; do
     bf=$(basename "${f}")
+    sha1=$(sha1sum "${f}" | cut -d' ' -f1)
 
-    echo "        <li><a href=\"${BASEURL}/${bf}\">${bf}</a></li>" >>index.html
+    case "${bf}" in
+    *core-image-develboard-full*)
+        desc="Full C/C++ toolchain for DevelBoard Blue, including all support headers and libraries for third-party packages"
+        ;;
+    *)
+        desc="Basic C/C++ toolchain for DevelBoard Blue"
+        ;;
+    esac
+
+    echo "        <li><a href=\"${BASEURL}/${bf}\">${bf}</a><br>${desc}<br>SHA1: <code>${sha1}</code></li>" >>index.html
 done
 
 cat >>index.html <<EOF
