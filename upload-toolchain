@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+set -u
+
+ls develboard-glibc-x86_64*-toolchain*.sh 1>/dev/null 2>&1 || {
+    echo "Cannot find toolchain installer files. Aborting"
+    exit 1
+}
+
+ls develboard-glibc-x86_64*-toolchain*.manifest 1>/dev/null 2>&1 || {
+    echo "Cannot find toolchain manifest files. Aborting"
+    exit 1
+}
+
+aws s3 sync --profile develboard-toolchain --region eu-west-1 ./ s3://toolchain.develboard.com/
