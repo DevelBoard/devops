@@ -55,3 +55,11 @@ EOF
 
 aws --profile develboard-toolchain --region eu-west-1 \
     s3 sync ./ s3://toolchain.develboard.com/
+
+for f in *.sh; do
+    bf=$(basename "${f}")
+
+    aws --profile develboard-toolchain --region eu-west-1 \
+        s3api copy-object --bucket toolchain.develboard.com --content-type "application/octet-stream" \
+        --copy-source "toolchain.develboard.com/${bf}" --key "${bf}" --metadata-directive "REPLACE"
+done
