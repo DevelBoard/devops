@@ -53,4 +53,5 @@ cat >>index.html <<EOF
 </html>
 EOF
 
-aws s3 sync --profile develboard-toolchain --region eu-west-1 ./ s3://toolchain.develboard.com/
+aws --profile develboard-toolchain --region eu-west-1 \
+    s3 sync ./ s3://toolchain.develboard.com/
