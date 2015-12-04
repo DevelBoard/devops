@@ -34,6 +34,7 @@ EOF
 for f in *.sh; do
     bf=$(basename "${f}")
     sha1=$(sha1sum "${f}" | cut -d' ' -f1)
+    size=$(ls -lSh "${f}" | awk '{print $5}')
 
     case "${bf}" in
     *core-image-develboard-full*)
@@ -44,7 +45,7 @@ for f in *.sh; do
         ;;
     esac
 
-    echo "        <li><a href=\"${BASEURL}/${bf}\">${bf}</a><br>${desc}<br>SHA1: <code>${sha1}</code></li>" >>index.html
+    echo "        <li><a href=\"${BASEURL}/${bf}\">${bf}</a><br>${desc}<br>Size: ${size}<br>SHA1: <code>${sha1}</code></li>" >>index.html
 done
 
 cat >>index.html <<EOF
